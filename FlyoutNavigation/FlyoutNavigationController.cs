@@ -54,6 +54,10 @@ namespace FlyoutNavigation
 
 		public bool HideShadow{ get; set; }
 
+		public bool GestureToOpen{ get; set; }
+
+		public bool GestureToClose{ get; set; }
+
 		public UIViewController CurrentViewController{ get; private set; }
 
 		UIView mainView {
@@ -72,13 +76,19 @@ namespace FlyoutNavigation
 			navFrame.Width = menuWidth;
 			navigation.View.Frame = navFrame;
 			this.View.AddSubview (navigation.View);
+
+			GestureToOpen = true;
+			GestureToClose = false;
+
 			SearchBar = new UISearchBar (new RectangleF (0, 0, navigation.TableView.Bounds.Width, 44)) {
 				//Delegate = new SearchDelegate (this),
 				TintColor = this.TintColor
 			};
-			
+
+
 			TintColor = UIColor.Black;
 			//navigation.TableView.TableHeaderView = SearchBar;
+		
 			navigation.TableView.TableFooterView = new UIView (new RectangleF (0, 0, 100, 100)){BackgroundColor = UIColor.Clear};
 			navigation.TableView.ScrollsToTop = false;
 			shadowView = new UIView ();
@@ -121,34 +131,58 @@ namespace FlyoutNavigation
 			var translation = panGesture.TranslationInView (View).X;
 			var frame = mainView.Bounds;
 			if (panGesture.State == UIGestureRecognizerState.Changed) {
-				if (IsOpen) {
-					if (translation > 0.0f) {
-						ShowMenu();
-					} else if (translation < - menuWidth) {
-						HideMenu();
-					} else {
+				if (IsOpen) 
+				{
+					if (translation > 0.0f) 
+					{
+						if(GestureToOpen)
+							ShowMenu();
+					} 
+					else if (translation < - menuWidth) 
+					{
+						if(GestureToClose)
+							HideMenu();
+					}
+					else if(GestureToClose)
+					{
 						frame.X = menuWidth + translation;
 						SetLocation(frame); 
 					}
-				} else {
-					if (translation < 0.0f) {
-						HideMenu();
-					} else if (translation > menuWidth) {
-						ShowMenu();
-					} else {
+				} 
+				else 
+				{
+					if (translation < 0.0f)
+					{
+						if(GestureToClose)
+							HideMenu();
+					} 
+					else if (translation > menuWidth) 
+					{
+						if(GestureToOpen)
+							ShowMenu();
+					}
+					else if(GestureToOpen)
+					{
 						frame.X = translation;
 						SetLocation(frame);
 					}
 				}
-			} else if (panGesture.State == UIGestureRecognizerState.Ended) {
+			} else if (panGesture.State == UIGestureRecognizerState.Ended) 
+			{
 				var velocity = panGesture.VelocityInView(View).X;
 				bool show = (Math.Abs(velocity) > sidebarFlickVelocity)
 					? (velocity > 0)
 						: (translation > (menuWidth / 2));
 				if(show)
-					ShowMenu();
+				{
+					if(GestureToOpen)
+						ShowMenu();
+				}
 				else 
-					HideMenu();
+				{
+					if(GestureToClose)
+						HideMenu();
+				}
 				
 			}
 		}
@@ -334,6 +368,8 @@ namespace FlyoutNavigation
 				UIView.CommitAnimations ();
 			});
 		}
+
+		public UIColor BackgroundColor { get { return navigation.TableView.BackgroundColor; } set { navigation.TableView.BackgroundColor = value;}}
 
 		[Export("animationEnded")]
 		private void hideComplete ()
