@@ -31,6 +31,7 @@ namespace Sample
 			// Create the flyout view controller, make it large,
 			// and add it as a subview:
 			navigation = new FlyoutNavigationController ();
+		    navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Top;
 			navigation.View.Frame = UIScreen.MainScreen.Bounds;
 			View.AddSubview (navigation.View);
 			
@@ -61,6 +62,17 @@ namespace Sample
 				NavigationItem.LeftBarButtonItem = new UIBarButtonItem (UIBarButtonSystemItem.Action, delegate {
 					navigation.ToggleMenu ();
 				});
+
+                NavigationItem.RightBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Action, delegate
+                {
+                    if(navigation.IsOpen)
+                        navigation.ToggleMenu();
+
+                    if(navigation.FlyMode == FlyoutNavigationController.FlyoutMode.Top)
+                        navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Left;
+                    else if(navigation.FlyMode == FlyoutNavigationController.FlyoutMode.Left)
+                        navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Top;
+                });
 			}
 		}
 	}
