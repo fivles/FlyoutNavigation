@@ -26,6 +26,7 @@ using MonoTouch.CoreGraphics;
 
 namespace FlyoutNavigation
 {
+    [Register("FlyoutNavigationController")]
 	public class FlyoutNavigationController : UIViewController
 	{
 		UIColor tintColor;
@@ -68,42 +69,49 @@ namespace FlyoutNavigation
 			}
 		}
 
+        public FlyoutNavigationController (IntPtr handle) : base(handle)
+        {
+            Initialize();
+        }
+
 		public FlyoutNavigationController (UITableViewStyle navigationStyle = UITableViewStyle.Plain)
 		{
-			navigation = new DialogViewController(navigationStyle,null);
-			navigation.OnSelection += NavigationItemSelected;
-			var navFrame = navigation.View.Frame;
-			navFrame.Width = menuWidth;
-			navigation.View.Frame = navFrame;
-			this.View.AddSubview (navigation.View);
-
-			GestureToOpen = true;
-			GestureToClose = false;
-
-			SearchBar = new UISearchBar (new RectangleF (0, 0, navigation.TableView.Bounds.Width, 44)) {
-				//Delegate = new SearchDelegate (this),
-				TintColor = this.TintColor
-			};
-
-
-			TintColor = UIColor.Black;
-			//navigation.TableView.TableHeaderView = SearchBar;
-		
-			navigation.TableView.TableFooterView = new UIView (new RectangleF (0, 0, 100, 100)){BackgroundColor = UIColor.Clear};
-			navigation.TableView.ScrollsToTop = false;
-			shadowView = new UIView ();
-			shadowView.BackgroundColor = UIColor.White;
-			shadowView.Layer.ShadowOffset = new System.Drawing.SizeF (-5, -1);
-			shadowView.Layer.ShadowColor = UIColor.Black.CGColor;
-			shadowView.Layer.ShadowOpacity = .75f;
-			closeButton = new UIButton ();
-			closeButton.TouchDown += delegate {
-				HideMenu ();
-			};
-			AlwaysShowLandscapeMenu = true;
-
-			this.View.AddGestureRecognizer (new OpenMenuGestureRecognizer (this, new Selector ("panned"), this));
+            Initialize(navigationStyle);
 		}
+
+        private void Initialize (UITableViewStyle navigationStyle = UITableViewStyle.Plain)
+        {
+            navigation = new DialogViewController(navigationStyle,null);
+            navigation.OnSelection += NavigationItemSelected;
+            var navFrame = navigation.View.Frame;
+            navFrame.Width = menuWidth;
+            navigation.View.Frame = navFrame;
+            this.View.AddSubview (navigation.View);
+            SearchBar = new UISearchBar (new RectangleF (0, 0, navigation.TableView.Bounds.Width, 44)) {
+                //Delegate = new SearchDelegate (this),
+                TintColor = this.TintColor
+            };
+
+            GestureToOpen = true;
+			GestureToClose = false;
+            
+            TintColor = UIColor.Black;
+            //navigation.TableView.TableHeaderView = SearchBar;
+            navigation.TableView.TableFooterView = new UIView (new RectangleF (0, 0, 100, 100)){BackgroundColor = UIColor.Clear};
+            navigation.TableView.ScrollsToTop = false;
+            shadowView = new UIView ();
+            shadowView.BackgroundColor = UIColor.White;
+            shadowView.Layer.ShadowOffset = new System.Drawing.SizeF (-5, -1);
+            shadowView.Layer.ShadowColor = UIColor.Black.CGColor;
+            shadowView.Layer.ShadowOpacity = .75f;
+            closeButton = new UIButton ();
+            closeButton.TouchUpInside += delegate {
+				HideMenu ();
+            };
+            AlwaysShowLandscapeMenu = true;
+            
+            this.View.AddGestureRecognizer (new OpenMenuGestureRecognizer (this, new Selector ("panned"), this));
+        }
 
 		public event UITouchEventArgs ShouldReceiveTouch;
 
@@ -116,75 +124,54 @@ namespace FlyoutNavigation
 
 		public override void ViewDidLayoutSubviews ()
 		{
-			base.ViewDidLayoutSubviews ();
-			var navFrame = navigation.View.Frame;
+			base.ViewDidLayoutSubviews ();		
+			var navFrame =  this.View.Bounds;
+//			navFrame.Y += UIApplication.SharedApplication.StatusBarFrame.Height;
+//			navFrame.Height -= navFrame.Y;
+			//this.statusbar
 			navFrame.Width = menuWidth;
 			if (navigation.View.Frame != navFrame)
 				navigation.View.Frame = navFrame;
 		}
 
+		float startX = 0;
 		[Export("panned")]
 		public void DragContentView (UIPanGestureRecognizer panGesture)
 		{
-			if (ShouldStayOpen)
-				return;
-			var translation = panGesture.TranslationInView (View).X;
-			var frame = mainView.Bounds;
-			if (panGesture.State == UIGestureRecognizerState.Changed) {
-				if (IsOpen) 
-				{
-					if (translation > 0.0f) 
-					{
-						if(GestureToOpen)
-							ShowMenu();
-					} 
-					else if (translation < - menuWidth) 
-					{
-						if(GestureToClose)
-							HideMenu();
-					}
-					else if(GestureToClose)
-					{
-						frame.X = menuWidth + translation;
-						SetLocation(frame); 
-					}
-				} 
-				else 
-				{
-					if (translation < 0.0f)
-					{
-						if(GestureToClose)
-							HideMenu();
-					} 
-					else if (translation > menuWidth) 
-					{
-						if(GestureToOpen)
-							ShowMenu();
-					}
-					else if(GestureToOpen)
-					{
-						frame.X = translation;
-						SetLocation(frame);
-					}
-				}
-			} else if (panGesture.State == UIGestureRecognizerState.Ended) 
-			{
-				var velocity = panGesture.VelocityInView(View).X;
-				bool show = (Math.Abs(velocity) > sidebarFlickVelocity)
-					? (velocity > 0)
-						: (translation > (menuWidth / 2));
-				if(show)
-				{
-					if(GestureToOpen)
-						ShowMenu();
-				}
-				else 
-				{
-					if(GestureToClose)
-						HideMenu();
-				}
-				
-			}
+            if (ShouldStayOpen || mainView == null)
+                return;
+            var frame = mainView.Frame;
+            var translation = panGesture.TranslationInView(View).X;
+            //Console.WriteLine (translation);
+
+            if (panGesture.State == UIGestureRecognizerState.Began)
+            {
+                startX = frame.X;
+            }
+            else if (panGesture.State == UIGestureRecognizerState.Changed)
+            {
+                frame.X = translation + startX;
+                if (frame.X < 0)
+                    frame.X = 0;
+                else if (frame.X > frame.Width)
+                    frame.X = menuWidth;
+                SetLocation(frame);
+            }
+            else if (panGesture.State == UIGestureRecognizerState.Ended)
+            {
+                var velocity = panGesture.VelocityInView(View).X;
+                //Console.WriteLine (velocity);
+                var newX = translation + startX;
+                Console.WriteLine(translation + startX);
+                bool show = (Math.Abs(velocity) > sidebarFlickVelocity)
+                    ? (velocity > 0)
+                        : startX < menuWidth ? (newX > (menuWidth / 2)) : newX > menuWidth;
+                if (show)
+                    ShowMenu();
+                else
+                    HideMenu();
+
+            }
 		}
 
 		bool firstLaunch = true;
@@ -195,6 +182,7 @@ namespace FlyoutNavigation
 			navFrame.Width = menuWidth;
 			navFrame.Location = PointF.Empty;
 			navigation.View.Frame = navFrame;
+			this.View.BackgroundColor = NavigationTableView.BackgroundColor;
 			base.ViewWillAppear (animated);
 		}
 		
@@ -211,7 +199,7 @@ namespace FlyoutNavigation
 			get{ return navigation.TableView;}
 		}
 
-		UIViewController[] viewControllers;
+		protected UIViewController[] viewControllers;
 
 		public UIViewController[] ViewControllers {
 			get{ return viewControllers;}
@@ -223,14 +211,14 @@ namespace FlyoutNavigation
 			}
 		}
 		
-		private void NavigationItemSelected (NSIndexPath indexPath)
+		protected void NavigationItemSelected (NSIndexPath indexPath)
 		{
 			var index = GetIndex (indexPath);
 			NavigationItemSelected (index);
 			
 		}
 
-		private void NavigationItemSelected (int index)
+		protected void NavigationItemSelected (int index)
 		{
 			selectedIndex = index;			
 			if (viewControllers == null || viewControllers.Length <= index || index < 0) {
@@ -286,7 +274,7 @@ namespace FlyoutNavigation
 //			if (isOpen)
 //				return;
 			EnsureInvokedOnMainThread (delegate {
-				navigation.ReloadData ();
+				//navigation.ReloadData ();
 				//isOpen = true;
 				closeButton.Frame = mainView.Frame;
 				shadowView.Frame = mainView.Frame;
@@ -379,6 +367,8 @@ namespace FlyoutNavigation
 
 		public void ResignFirstResponders (UIView view)
 		{
+			if (view.Subviews == null)
+				return;
 			foreach (var subview in view.Subviews) {
 				if (subview.IsFirstResponder)
 					subview.ResignFirstResponder ();
@@ -423,7 +413,7 @@ namespace FlyoutNavigation
 			return rowCount + indexPath.Row;
 		}
 
-		private NSIndexPath GetIndexPath (int index)
+		protected NSIndexPath GetIndexPath (int index)
 		{
 			if (navigation.Root == null)
 				return NSIndexPath.FromRowSection (0, 0);
@@ -450,7 +440,17 @@ namespace FlyoutNavigation
 			var theReturn = CurrentViewController == null ? true : CurrentViewController.ShouldAutorotateToInterfaceOrientation (toInterfaceOrientation);
 			return theReturn;
 		}
-
+		public override UIInterfaceOrientationMask GetSupportedInterfaceOrientations ()
+		{
+			if(CurrentViewController != null)
+				return CurrentViewController.GetSupportedInterfaceOrientations();
+			return UIInterfaceOrientationMask.All;
+		}
+		public override bool ShouldAutomaticallyForwardRotationMethods {
+			get {
+				return true;
+			}
+		}
 		public override void WillRotate (UIInterfaceOrientation toInterfaceOrientation, double duration)
 		{
 			base.WillRotate (toInterfaceOrientation, duration);
@@ -480,7 +480,7 @@ namespace FlyoutNavigation
 			base.WillAnimateRotation (toInterfaceOrientation, duration);
 		}
 
-		private void EnsureInvokedOnMainThread (Action action)
+		protected void EnsureInvokedOnMainThread (Action action)
 		{
 			if (IsMainThread ()) {
 				action ();
