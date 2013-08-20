@@ -33,6 +33,7 @@ namespace Sample
 			navigation = new FlyoutNavigationController ();
 		    navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Top;
 			navigation.View.Frame = UIScreen.MainScreen.Bounds;
+		    navigation.TargetViewController = this;
 			View.AddSubview (navigation.View);
 			
 			// Create the menu:
@@ -49,6 +50,12 @@ namespace Sample
            		new UINavigationController (new TaskPageController (navigation, title))
 			);
 		}
+
+        public override void DidRotate(UIInterfaceOrientation fromInterfaceOrientation)
+        {
+            base.DidRotate(fromInterfaceOrientation);
+            navigation.DidRotate(fromInterfaceOrientation);
+        }
 		
 		class TaskPageController : DialogViewController
 		{
@@ -63,7 +70,7 @@ namespace Sample
 					navigation.ToggleMenu ();
 				});
 
-                NavigationItem.RightBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Action, delegate
+                NavigationItem.RightBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Refresh, delegate
                 {
                     if(navigation.IsOpen)
                         navigation.ToggleMenu();
@@ -71,6 +78,8 @@ namespace Sample
                     if(navigation.FlyMode == FlyoutNavigationController.FlyoutMode.Top)
                         navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Left;
                     else if(navigation.FlyMode == FlyoutNavigationController.FlyoutMode.Left)
+                        navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Right;
+                    else 
                         navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Top;
                 });
 			}
