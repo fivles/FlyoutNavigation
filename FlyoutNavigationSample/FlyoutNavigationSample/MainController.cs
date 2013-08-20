@@ -31,7 +31,7 @@ namespace Sample
 			// Create the flyout view controller, make it large,
 			// and add it as a subview:
 			navigation = new FlyoutNavigationController ();
-		    navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Top;
+		    navigation.FlyMode = FlyoutNavigationController.FlyoutMode.Left;
 			navigation.View.Frame = UIScreen.MainScreen.Bounds;
 		    navigation.TargetViewController = this;
 			View.AddSubview (navigation.View);

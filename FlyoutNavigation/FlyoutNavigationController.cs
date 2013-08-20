@@ -45,10 +45,23 @@ namespace FlyoutNavigation
 		private UIView shadowView;
 		private UIButton closeButton;
 
+            private UIViewController targetViewController;
+
+            public UIViewController TargetViewController
+            { 
+              get { return this.targetViewController; }
+              set 
+              {
+                this.targetViewController = value;
+                this.targetViewController.View.AddGestureRecognizer(new OpenMenuGestureRecognizer(this, new Selector("panned"), this));
+              }
+            }
+
         public enum FlyoutMode
         {
             Left,
-            Top
+            Top,
+            Right
         }
 
         private FlyoutMode m_FlyMode = FlyoutMode.Left;
@@ -64,13 +77,22 @@ namespace FlyoutNavigation
                     case FlyoutMode.Left:
                         navFrame.Width = menuWidth;
                         navFrame.Height = this.View.Frame.Height;
+                        navFrame.X = 0;
                         AlwaysShowLandscapeMenu = true;
+                        this.NavigationTableView.ContentOffset = new PointF(0, 0);
                         break;
                     case FlyoutMode.Top:
                         navFrame.Width = this.View.Frame.Width;
                         menuHeight = (int)(this.View.Frame.Height * .7f);//70% of screen
                         navFrame.Height = menuHeight;
+                        navFrame.X = 0;
+                        this.NavigationTableView.ContentOffset = new PointF(0, 0);
                         AlwaysShowLandscapeMenu = false;
+                        break;
+                    case FlyoutMode.Right:
+                        navFrame.Width = menuWidth;
+                        navFrame.Height = this.View.Frame.Height;
+                        AlwaysShowLandscapeMenu = true;
                         break;
                 }
 
@@ -146,7 +168,7 @@ namespace FlyoutNavigation
             };
             AlwaysShowLandscapeMenu = true;
             
-            this.View.AddGestureRecognizer (new OpenMenuGestureRecognizer (this, new Selector ("panned"), this));
+            //this.View.AddGestureRecognizer (new OpenMenuGestureRecognizer (this, new Selector ("panned"), this));
         }
 
 		public event UITouchEventArgs ShouldReceiveTouch;
@@ -166,9 +188,19 @@ namespace FlyoutNavigation
 //			navFrame.Height -= navFrame.Y;
 			//this.statusbar
             if (m_FlyMode == FlyoutMode.Left)
+            {
                 navFrame.Width = menuWidth;
+                navFrame.X = 0;
+            }
+            else if (m_FlyMode == FlyoutMode.Right)
+            {
+                navFrame.X = this.View.Frame.Width - menuWidth;
+            }
             else if (m_FlyMode == FlyoutMode.Top)
+            {
                 navFrame.Height = menuHeight;
+                navFrame.X = 0;
+            }
 
 			if (navigation.View.Frame != navFrame)
 				navigation.View.Frame = navFrame;
@@ -189,11 +221,68 @@ namespace FlyoutNavigation
                 case FlyoutMode.Top:
                     PanTop(panGesture);
                     break;
+                case FlyoutMode.Right:
+                    PanRight(panGesture);
+                    break;
             }
          
 		}
 
-  
+        private void PanRight(UIPanGestureRecognizer panGesture)
+        {
+            var frame = mainView.Frame;
+            var translation = panGesture.TranslationInView(View).X;
+            //Console.WriteLine (translation);
+
+            if (panGesture.State == UIGestureRecognizerState.Began)
+            {
+                startX = frame.X;
+            }
+            else if (panGesture.State == UIGestureRecognizerState.Changed)
+            {
+                //don't allow getsture to close
+                if (!GestureToClose && (translation + startX) > startX)
+                    translation = 0;
+
+                //don't allow gesture to open
+                if (!GestureToOpen && (translation + startX) < startX)
+                    translation = 0;
+
+                frame.X = translation + startX;
+                if (frame.X < -menuWidth)
+                    frame.X = -menuWidth;
+                else if (frame.X > 0)
+                    frame.X = 0;
+
+                SetLocation(frame);
+            }
+            else if (panGesture.State == UIGestureRecognizerState.Ended)
+            {
+                var velocity = panGesture.VelocityInView(View).X;
+                //Console.WriteLine (velocity);
+                var newX = translation + startX;
+                Console.WriteLine(translation + startX);
+                bool show = (Math.Abs(velocity) > sidebarFlickVelocity)
+                        ? (velocity > 0)
+                        : startX < menuWidth ? (newX > (menuWidth / 2)) : newX > menuWidth;
+                show = !show;//swap
+                //don't allow flick open
+                if (show && !GestureToOpen)
+                    return;
+                //don't allow flick close
+                if (!show && !GestureToClose)
+                    return;
+
+                if (show)
+                    ShowMenu();
+                else
+                    HideMenu();
+
+            }
+        }
+
+
+
         private void PanLeft(UIPanGestureRecognizer panGesture)
         {
                var frame = mainView.Frame;
@@ -298,7 +387,7 @@ namespace FlyoutNavigation
 		public override void ViewWillAppear (bool animated)
 		{			
 			var navFrame = navigation.View.Frame;
-            if (m_FlyMode == FlyoutMode.Left)
+            if (m_FlyMode == FlyoutMode.Left || m_FlyMode == FlyoutMode.Right)
                 navFrame.Width = menuWidth;
             else if (m_FlyMode == FlyoutMode.Top)
                 navFrame.Height = menuHeight;
@@ -373,16 +462,29 @@ namespace FlyoutNavigation
 		    {
                 if (m_FlyMode == FlyoutMode.Left)
                     frame.X = menuWidth;
+                else if (m_FlyMode == FlyoutMode.Right)
+                {
+                    frame.X = -menuWidth;
+                }
                 else if (m_FlyMode == FlyoutMode.Top)
                     frame.Y = menuHeight;
 		    }
 
 		    setViewSize ();
 			SetLocation (frame);
-			
-			this.View.AddSubview (mainView);
-			this.AddChildViewController (CurrentViewController);
-			if (!HideShadow)
+
+		    if (this.TargetViewController != null)
+		    {
+                this.TargetViewController.View.AddSubview(mainView);
+                this.TargetViewController.AddChildViewController(CurrentViewController);
+		    }
+            else
+		    {
+		        this.View.AddSubview(mainView);
+		        this.AddChildViewController(CurrentViewController);
+		    }
+
+		    if (!HideShadow)
 				this.View.InsertSubviewBelow (shadowView, mainView);
 			if (!ShouldStayOpen)
 				HideMenu ();
@@ -430,6 +532,10 @@ namespace FlyoutNavigation
 
                 if (m_FlyMode == FlyoutMode.Left)
                     frame.X = menuWidth;
+                else if (m_FlyMode == FlyoutMode.Right)
+                {
+                    frame.X = -menuWidth;
+                }
                 else if (m_FlyMode == FlyoutMode.Top)
                     frame.Y = menuHeight;
 
@@ -461,6 +567,10 @@ namespace FlyoutNavigation
 		    {
                 if (m_FlyMode == FlyoutMode.Left)
                     frame.Width -= menuWidth;
+                else if (m_FlyMode == FlyoutMode.Right)
+                {
+                    frame.Width += menuWidth;
+                }
                 else if (m_FlyMode == FlyoutMode.Top)
                     frame.Height -= menuHeight;
 		        
@@ -478,6 +588,10 @@ namespace FlyoutNavigation
 			mainView.Layer.AnchorPoint = new PointF(.5f, .5f);
             if (m_FlyMode == FlyoutMode.Left)
                 frame.Y = 0;
+            else if (m_FlyMode == FlyoutMode.Right)
+            {
+                frame.Y = 0;
+            }
             else if (m_FlyMode == FlyoutMode.Top)
                 frame.X = 0;
 
@@ -508,6 +622,10 @@ namespace FlyoutNavigation
 				var frame = this.View.Bounds;
                 if (m_FlyMode == FlyoutMode.Left)
                     frame.X = 0;
+                else if (m_FlyMode == FlyoutMode.Right)
+                {
+                    frame.X = 0;
+                }
                 else if (m_FlyMode == FlyoutMode.Top)
                     frame.Y = 0;
 
@@ -626,9 +744,13 @@ namespace FlyoutNavigation
 
 		    FlyMode = m_FlyMode;//re-init sizes.
 
-			if (UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone) 
-				return;
-			switch (InterfaceOrientation) {
+            //hide if we are phone and rotated as leaving it open could effect top view
+		    if (UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone)
+            {
+                HideMenu();
+		        return;
+		    }
+		    switch (InterfaceOrientation) {
 			case UIInterfaceOrientation.LandscapeLeft:
 			case UIInterfaceOrientation.LandscapeRight:
 				ShowMenu ();
