@@ -59,6 +59,12 @@ namespace FlyoutNavigation
 
 		public bool GestureToClose{ get; set; }
 
+        /// <summary>
+        /// When setting the ViewControllers the first view is automatically displayed. Settings this to false stops that
+        /// </summary>
+        /// <value><c>true</c> if should auto push first view; otherwise, <c>false</c>.</value>
+        public bool AutoPushFirstView { get; set; }
+
 		public UIViewController CurrentViewController{ get; private set; }
 
 		UIView mainView {
@@ -81,6 +87,7 @@ namespace FlyoutNavigation
 
         private void Initialize (UITableViewStyle navigationStyle = UITableViewStyle.Plain)
         {
+            AutoPushFirstView = true;
             navigation = new DialogViewController(navigationStyle,null);
             navigation.OnSelection += NavigationItemSelected;
             var navFrame = navigation.View.Frame;
@@ -93,7 +100,7 @@ namespace FlyoutNavigation
             };
 
             GestureToOpen = true;
-			GestureToClose = false;
+			GestureToClose = true;
             
             TintColor = UIColor.Black;
             //navigation.TableView.TableHeaderView = SearchBar;
@@ -150,6 +157,14 @@ namespace FlyoutNavigation
             }
             else if (panGesture.State == UIGestureRecognizerState.Changed)
             {
+                //don't allow getsture to close
+                if (!GestureToClose && (translation + startX) < startX)
+                    translation = 0;
+
+                //don't allow gesture to open
+                if (!GestureToOpen && (translation + startX) > startX)
+                    translation = 0;
+
                 frame.X = translation + startX;
                 if (frame.X < 0)
                     frame.X = 0;
@@ -166,6 +181,14 @@ namespace FlyoutNavigation
                 bool show = (Math.Abs(velocity) > sidebarFlickVelocity)
                     ? (velocity > 0)
                         : startX < menuWidth ? (newX > (menuWidth / 2)) : newX > menuWidth;
+
+                //don't allow flick open
+                if (show && !GestureToOpen)
+                    return;
+                //don't allow flick close
+                if (!show && !GestureToClose)
+                    return;
+
                 if (show)
                     ShowMenu();
                 else
@@ -201,15 +224,21 @@ namespace FlyoutNavigation
 
 		protected UIViewController[] viewControllers;
 
-		public UIViewController[] ViewControllers {
-			get{ return viewControllers;}
-			set {
-				EnsureInvokedOnMainThread (delegate {
-					viewControllers = value;
-					NavigationItemSelected (GetIndexPath (SelectedIndex));
-				});
-			}
-		}
+        public UIViewController[] ViewControllers
+        {
+            get { return viewControllers; }
+            set
+            {
+                EnsureInvokedOnMainThread(delegate
+                {
+                    viewControllers = value;
+                    if (AutoPushFirstView)
+                    {
+                        NavigationItemSelected(GetIndexPath(SelectedIndex));
+                    }
+                });
+            }
+        }
 		
 		protected void NavigationItemSelected (NSIndexPath indexPath)
 		{
@@ -367,6 +396,9 @@ namespace FlyoutNavigation
 
 		public void ResignFirstResponders (UIView view)
 		{
+		    if (view == null)
+		        return;
+
 			if (view.Subviews == null)
 				return;
 			foreach (var subview in view.Subviews) {
